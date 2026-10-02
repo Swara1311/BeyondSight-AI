@@ -1,0 +1,104 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id                String   @id @default(uuid())
+  email             String   @unique
+  passwordHash      String
+  name              String
+  preferredLanguage String   @default("en")
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  preferences        UserPreference?
+  emergencyContacts   EmergencyContact[]
+  ocrHistory          OcrHistory[]
+  detectionLogs       DetectionLog[]
+  sosEvents           SosEvent[]
+  savedPlaces         SavedPlace[]
+
+  @@map("users")
+}
+
+model UserPreference {
+  id             String  @id @default(uuid())
+  userId         String  @unique
+  voiceSpeed     Float   @default(1.0)
+  highContrast   Boolean @default(false)
+  reducedMotion  Boolean @default(false)
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("user_preferences")
+}
+
+model EmergencyContact {
+  id           String @id @default(uuid())
+  userId       String
+  name         String
+  phone        String
+  relationship String
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("emergency_contacts")
+}
+
+model OcrHistory {
+  id            String   @id @default(uuid())
+  userId        String
+  extractedText String
+  summary       String?
+  createdAt     DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("ocr_history")
+}
+
+model DetectionLog {
+  id          String   @id @default(uuid())
+  userId      String
+  description String
+  createdAt   DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("detection_logs")
+}
+
+model SosEvent {
+  id        String   @id @default(uuid())
+  userId    String
+  latitude  Float
+  longitude Float
+  message   String?
+  status    String   @default("triggered")
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("sos_events")
+}
+
+model SavedPlace {
+  id        String   @id @default(uuid())
+  userId    String
+  name      String
+  latitude  Float
+  longitude Float
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("saved_places")
+}
