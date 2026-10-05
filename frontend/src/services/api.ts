@@ -1,4 +1,4 @@
-const API_BASE_URL = "http://localhost:5000/api";
+const API_BASE_URL = "https://beyondsight-ai.onrender.com/api";
 
 export async function checkBackendHealth() {
   const response = await fetch(`${API_BASE_URL}/health`);
