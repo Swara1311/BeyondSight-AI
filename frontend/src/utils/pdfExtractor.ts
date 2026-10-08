@@ -37,7 +37,7 @@ export async function extractTextFromPdf(file: File): Promise<PdfExtractionResul
   const ctx = canvas.getContext("2d");
 
   if (ctx) {
-    await firstPage.render({ canvasContext: ctx, viewport }).promise;
+    await firstPage.render({ canvasContext: ctx, viewport, canvas }).promise;
     return {
       text: "",
       needsOcr: true,

@@ -1,9 +1,10 @@
 import { useRef, useState, useCallback, useEffect } from "react";
+import type { RefObject } from "react";
 
 type CameraStatus = "idle" | "requesting" | "active" | "denied" | "unavailable" | "error";
 
 interface UseCameraResult {
-  videoRef: React.RefObject<HTMLVideoElement>;
+  videoRef: RefObject<HTMLVideoElement | null>;
   status: CameraStatus;
   errorMessage: string | null;
   startCamera: () => Promise<void>;
@@ -29,7 +30,11 @@ export function useCamera(): UseCameraResult {
 
     try {
       const stream = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode: "environment" },
+        video: {
+          facingMode: "environment",
+          width: { ideal: 1920 },
+          height: { ideal: 1080 },
+        },
         audio: false,
       });
 
@@ -75,7 +80,7 @@ export function useCamera(): UseCameraResult {
     if (!ctx) return null;
 
     ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-    return canvas.toDataURL("image/jpeg", 0.8);
+    return canvas.toDataURL("image/png");
   }, []);
 
   useEffect(() => {
