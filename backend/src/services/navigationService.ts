@@ -15,56 +15,99 @@ interface RouteResult {
   totalDuration: number;
 }
 
+const ORS_BASE_URL = "https://api.openrouteservice.org";
+
+async function geocodeWithOrs(query: string, near: Coordinates): Promise<Coordinates | null> {
+  const apiKey = process.env.OPENROUTE_API_KEY;
+  if (!apiKey) return null;
+
+  const url =
+    `${ORS_BASE_URL}/geocode/search?api_key=${encodeURIComponent(apiKey)}` +
+    `&text=${encodeURIComponent(query)}` +
+    `&focus.point.lon=${near.longitude}&focus.point.lat=${near.latitude}` +
+    `&boundary.country=IN&size=1`;
+
+  const response = await fetch(url);
+
+  if (!response.ok) {
+    const body = await response.text();
+    console.error("ORS geocode error:", response.status, body.slice(0, 300));
+    return null;
+  }
+
+  const data = await response.json();
+  const coords = data.features?.[0]?.geometry?.coordinates;
+  if (!coords) return null;
+
+  return { latitude: coords[1], longitude: coords[0] };
+}
+
+async function geocodeWithNominatim(query: string, near: Coordinates): Promise<Coordinates | null> {
+  const contact = process.env.CONTACT_EMAIL || "student-project";
+  const headers = { "User-Agent": `BeyondSightAI/1.0 (${contact})` };
+
+  for (const offset of [0.3, 1.5]) {
+    const viewbox = [
+      near.longitude - offset,
+      near.latitude + offset,
+      near.longitude + offset,
+      near.latitude - offset,
+    ].join(",");
+
+    const url =
+      `https://nominatim.openstreetmap.org/search?format=json&limit=1` +
+      `&q=${encodeURIComponent(query)}&viewbox=${viewbox}&bounded=1`;
+
+    const response = await fetch(url, { headers });
+
+    if (!response.ok) {
+      console.error("Nominatim error:", response.status);
+      return null;
+    }
+
+    const data = await response.json();
+    if (data && data.length > 0) {
+      return { latitude: parseFloat(data[0].lat), longitude: parseFloat(data[0].lon) };
+    }
+  }
+
+  return null;
+}
+
 export async function geocodePlace(
   query: string,
   nearLatitude: number,
   nearLongitude: number
 ): Promise<Coordinates> {
-  const viewboxOffset = 0.3;
-  const viewbox = [
-    nearLongitude - viewboxOffset,
-    nearLatitude + viewboxOffset,
-    nearLongitude + viewboxOffset,
-    nearLatitude - viewboxOffset,
-  ].join(",");
+  const near = { latitude: nearLatitude, longitude: nearLongitude };
 
-  const url = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(
-    query
-  )}&limit=1&viewbox=${viewbox}&bounded=1`;
-
-  const response = await fetch(url, {
-    headers: { "User-Agent": "BeyondSightAI/1.0" },
-  });
-
-  if (!response.ok) {
-    throw new Error("Could not search for that place.");
+  try {
+    const result = await geocodeWithOrs(query, near);
+    if (result) return result;
+  } catch (error) {
+    console.error("ORS geocode failed:", error);
   }
 
-  const data = await response.json();
-
-  if (!data || data.length === 0) {
-    throw new Error(`Could not find "${query}" near you.`);
+  try {
+    const result = await geocodeWithNominatim(query, near);
+    if (result) return result;
+  } catch (error) {
+    console.error("Nominatim geocode failed:", error);
   }
 
-  return {
-    latitude: parseFloat(data[0].lat),
-    longitude: parseFloat(data[0].lon),
-  };
+  throw new Error(
+    `Could not find "${query}". Try saying the city too, for example "Pune railway station".`
+  );
 }
 
-export async function getRoute(
-  start: Coordinates,
-  end: Coordinates
-): Promise<RouteResult> {
+export async function getRoute(start: Coordinates, end: Coordinates): Promise<RouteResult> {
   const apiKey = process.env.OPENROUTE_API_KEY;
 
   if (!apiKey) {
     throw new Error("Navigation service is not configured.");
   }
 
-  const url = "https://api.openrouteservice.org/v2/directions/foot-walking";
-
-  const response = await fetch(url, {
+  const response = await fetch(`${ORS_BASE_URL}/v2/directions/foot-walking`, {
     method: "POST",
     headers: {
       Authorization: apiKey,
@@ -75,12 +118,13 @@ export async function getRoute(
         [start.longitude, start.latitude],
         [end.longitude, end.latitude],
       ],
+      radiuses: [-1, -1],
     }),
   });
 
   if (!response.ok) {
     const errorText = await response.text();
-    console.error("OpenRouteService error:", response.status, errorText);
+    console.error("OpenRouteService route error:", response.status, errorText.slice(0, 300));
     throw new Error("Could not calculate a route to that destination.");
   }
 
